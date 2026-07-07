@@ -203,7 +203,24 @@ static const float earth_gravity = 9.80665;
 
 	if (self.useCADisplayLink) {
 		self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(drawView)];
+
+#if !defined(VISIONOS_ENABLED)
+		if (@available(iOS 15.0, *)) {
+			// On ProMotion devices, a display link requesting a fixed frame rate gets its
+			// callback rate halved while the screen is being touched (120 -> 60, 60 -> 30).
+			// Requesting a frame rate range whose maximum matches the display's refresh
+			// rate instead keeps callbacks at the preferred rate during touch interaction.
+			// See GH-76425 and https://developer.apple.com/forums/thread/695097
+			float max_fps = [UIScreen mainScreen].maximumFramesPerSecond;
+			float preferred_fps = MIN(self.preferredFrameRate, max_fps);
+			float min_fps = MIN(MAX(preferred_fps / 2, 60.0f), preferred_fps);
+			self.displayLink.preferredFrameRateRange = CAFrameRateRangeMake(min_fps, max_fps, preferred_fps);
+		} else {
+			self.displayLink.preferredFramesPerSecond = self.preferredFrameRate;
+		}
+#else
 		self.displayLink.preferredFramesPerSecond = self.preferredFrameRate;
+#endif
 
 		// Setup DisplayLink in main thread
 		[self.displayLink addToRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
